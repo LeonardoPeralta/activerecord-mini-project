@@ -1,132 +1,108 @@
-### Rake and File Structure
+# Active Record Domain Modeling Project
 
-- Rake
-  - We have a Rakefile that defines tasks to be run from the command line
-  - To view tasks, run `rake -T` from your terminal
-  - Tasks allow us to encapsulate ruby code that we want to execute **from the command line**
-  - We're getting some tasks from the `sinatra/activerecord/rake` library which gives us easy to use ActiveRecord tasks (we can see this included in our gemfile)
-  ***
-- File structure
-  - Gemfile––what is a gemfile? Why on earth would we want to use one?
-  - `app` folder holds our models––our Ruby classes
-  - `db` directory holds migrations and seeds.rb file––what are our seeds?
-  - `config` holds environment file
-    - `require 'bundler'` and `Bundler.require` **load all of the gems in our Gemfile**
-    - `ActiveRecord::Base.establish_connection` **sets up our database** (with options hash)
-    - `require_all` **loads all of our application code**
+In this assignment, you'll build out your own project, using Active Record to enact database relationships, from scratch.
 
----
+## Objectives
 
-### Migrations and Database Structure
+1. Build out a complex set of associations, including the belongs to/has many, and many-to-many relationship.
+2. Use the code you wrote! Build a simple command line interface class so that a user can interact with your database.
 
-- we want to create our first model \(ruby class + sql table\)––how to we bridge the gap between sql data and our ruby classes?
-- What is a model? Our Ruby Class
-- What is a migration? Some ruby code that alters our schema
-- What is a schema? The structure of our database
-- to get our database set up, we need to use the `rake db:create_migration NAME=create_boxers`
-- check out the migrations in the `db/migrations` folder
+## Guidelines
 
-  - what is the sequence of numbers in the beginning of the file name? It's a time stamp that identifies our migrations. We need these migrations to run in the order in which they were created.
-  - What are the `change`, `up`, and `down` methods in migrations? These ActiveRecord methods allow us to alter our db schema.
+In this app, you'll be working with a library domain model. You will have the following models:
 
-- `create_table` method which takes a block, the block takes a table builder
+* Category (think fiction, non-fiction, biography, science, etc.). A category has a:
+  * name
+  * has many books
+* Book. A book has a:
+  * title
+  * belongs to a category
+  * belongs to an author
+* Author. An author has a:
+  * name
+  * has many books
+* User. A user has a:
+  * name
 
-  - why do we use the `t` variable?
-  - `t.string :name` what is the `string` method declaring? This table will have a property called name that is a string
+The relationship between books and users in a little complex. A user can have many books and a book can belong to many users. At what point in time should a book be added to a user's collection of books? When a user checks that book out of the library. You will need a join table to implement this many-to-many relationship.
 
-  ***
+You also need to keep track of the books a user has previously checked out, vs. the books a user has currently checked out. So, each "checked out book" should know the its due date, should know whether or not it was returned and should therefore know if that book is overdue for that user.
 
-- run migrations `rake db:migrate`
+## Instructions
 
-  - Our `schema.rb` which is the **authoritative representation of the database structure**
-  - look at the `version` argument in the schema to see if it matches with the last successful migration timestamp. **These should match if your migration succeeded**
+### Database Design
 
-  ***
+Go ahead and design your database. What do you tables need to look like? What foriegn keys need to be included in which tables? Do you need a join table? What columns should it have?
 
-- migration conventions
+Create and run your migrations.
 
-  - **file name and class name must match up exactly, but in different case**––for example `TIMESTAMP_create_trainers.rb` our db table is pluralized `trainers` and our model (Ruby class) is singular
+### Model Design
 
-    ```ruby
-    class Trainer < ActiveRecord::Base
-    end
-    ```
+Once you have migrated your database, define you models. Remember to inherit them from `ActiveRecord::Base`. Use the appropriate macros to finish building your your associations.
 
-  - create_table block argument is usually a `t`
+### Model Methods
 
-- blowing up the database (DO NOT DO IN REAL LIFE)
-  - delete db
-  - delete schema.rb
-  - !!! don't do this, just in this module, and don't do it if you can't easily get your data back
-  - instead, use `rake db:rollback`
-  ***
-- gracefully fixing the db
-  - create a new migration
-  - roll that migration back
-  - delete the migration files you don't want to keep
-- we don't need to create migration files by hand anymore! 😍THX ACTIVERECORD😍
-
-### Connecting Models to ActiveRecord
-
-- Our models (Ruby classes) appear in `app/models`
-  - **MAJOR KEY 🔑** convention is to have the model class name singular and the sql table plural––
-  ```ruby
-  class Trainer < ActiveRecord::Base
-  end
-  ```
-  but the table is called `trainers`
-- Since our Ruby classes inherit from ActiveRecord, we have access to AR methods
-
-  - We can use `Trainer.create(name: 'John Kavanagh')` to both **save our trainer to the db** and **create a ruby object with that same data**
-  - How do we suddenly know which attributes our trainer is supposed to have?
-
-- A boxer belongs to a trainer, so we need to create it with an trainer_id: `Boxer.create(name: 'Cris Cyborg', trainer_id: 1)`
-
-- How can we associate a boxer with an author and vice-versa?
+Write a `User` instance method that allows a user to "check out" a book.
 
 ```ruby
-class Boxer < ActiveRecord::Base
-  def trainer
-    # Trainer.all.find{ |trainer| trainer.id == self.trainer_id }
-    # OR use AR .find
-    Trainer.find(self.trainer_id)
-  end
-end
-#...
-class Trainer < ActiveRecord::Base
-  def boxers
-    # Boxer.all.select{|boxer| boxer.trainer_id == self.id}
-    # OR use AR .where
-    Trainer.where(trainer_id: self.id)
-  end
-end
+the_doctor = User.create(name: "The Doctor")
+book = Book.create(title: "Tardis Manual")
+
+the_doctor.check_out_book(book, due_date: "September 1st, 2016")
+
+the_doctor.books
+# => [#<Book:0x007f8973912 @title="Tardis Manual">]
+
+book.users
+# => [#<User:8x007f867390fe38 @name="The Doctor">]
 ```
 
-## What About a Better Way™️
+When a user check's out a book, it should create a new UserBook record (or Checkout record or whatever you want to call you join table/model). That new UserBook record should have a attribute (and therefore table column) of `returned?` which should default to `false`
 
-- ActiveRecord Macros
-  - Boxer model: `belongs_to :trainer`
-  - Trainer model `has_many :boxers`
-- These macros provide **even more** methods, like `boxer_instance.trainer` and `trainer_instance.boxers`
-  - **Major Key🔑**––since a boxer belongs_to a trainer it should have ONE trainer. Therefore the method is `.trainer`. A trainer HAS MANY boxers, therefore the method is `.boxers` pay attention to what is singular and what is plural.
+So, after running the code above, I should be able to run the following code and see the following return values:
 
-### Important Methods from ActiveRecord
+```ruby
+UserBook.where(user: the_doctor, returned: false)
+# => [#<User:0x007f867390fe38
+        @user=#<User:0x007290867390fe38 @name="The Doctor">,
+        @book=#<Book:7x007f8673999 @title="Tardis Manual">,
+        @returned=false>
+      ]
+```
 
-- Model.new
-  - creates a new **RUBY** instance in local memory without persisting to the database
-- Model\#save
-  - inserts or updates a **RUBY** instance to the db
-- Model.create
-  - Model.new + Model\#save
-  - A class method that creates a new **RUBY** instance AND saves it to the database
-- Model.all
-  - returns all instances (we wrote this by hand a million times)
-- Model.first
-  - instance with the lowest ID in the db
-- Model.find
-  - Finds a record by id and returns a Ruby instance––`Boxer.find(1)` returns the boxer with an id of 1
-- Model.find_by\({ attribute: value }\)
-  - can find by one attribute-value pair or multiple
-  - `Boxer.find_by(name: 'Mike Tyson')` will return the boxer with a name of 'Mike Tyson'
 
-[Active Record Docs](http://edgeguides.rubyonrails.org/active_record_migrations.html#using-the-up-down-methods)
+Write  `User` instance method that allows a user to "return" a book.
+
+```ruby
+the_doctor.return_book(book)
+the_doctor.books
+# => [#<Book:0x007f8973912 @title="Tardis Manual">]
+
+UserBook.where(user: the_doctor, returned: false)
+# => []
+
+UserBook.where(user: the_doctor, returned: true)
+# => [#<User:0x007f867390fe38
+        @user=#<User:0x007290867390fe38 @name="The Doctor">,
+        @book=#<Book:7x007f8673999 @title="Tardis Manual">,
+        @returned=false>
+      ]
+```
+
+### Play around with your code
+
+Run the console task, `rake console`, and play around with the code you wrote to make sure your associations are working properly. Make and save an instance of category, book, author and use. Add the book to your category's collection of books, add the book to the author's collection of books. Have the user "check out" the book. Have the user "return" the book.
+
+### Command Line Interface
+
+If you have time, build out a very simple CLI that does the following:
+
+* Greet the user
+* Ask the user for their name so you can find that user in your database
+* Show the user a list of categories and ask them to choose a category whose books they want to see
+* Show the user all the books in the chosen category
+* Allow the user to choose a book to check out
+* Check out that book for them
+* Prompt and allow the user to return the book
+
+*This functionality will require you to see you database with a few dummy categories, books and users. Put this code in your `db/seeds.rb` file and run `rake db:seed`.
